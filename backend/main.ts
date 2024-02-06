@@ -31,14 +31,54 @@ const kv = await Deno.openKv()
 
 router.post("/register", async (ctx) => {
   try {
-      const body = ctx.request.body({ type: "json" })
-      const credentials = await body.value
-      const key = ["users", credentials.login]
-      const value = { password: credentials.password }
-      await kv.set(key, value)
-      ctx.response.status = Status.NoContent
-  } catch {
+    const body = ctx.request.body({ type: "json" })
+    const credentials = await body.value
+      
+    // null/undefined -> false, "" -> false
+    // sprawdzamy, czy istnieją odpowiednie dane w JSONie
+    if (!credentials.login || !credentials.password) {
+      ctx.response.status = Status.BadRequest
+      return;
+    }
+
+    const key = ["users", credentials.login]
+    const entry = await kv.get(key);
+    // czy użytkownik z tym loginem istnieje
+    if (entry.versionstamp) {
       ctx.response.status = Status.Unauthorized
+      return;
+    }
+
+    const value = { password: credentials.password }
+    await kv.set(key, value)
+    ctx.response.status = Status.NoContent
+  } catch {
+    ctx.response.status = Status.Unauthorized
+  }
+}).post("/login", async (ctx) => {
+  try {
+    const body = ctx.request.body({ type: "json" })
+    const credentials = await body.value
+
+    // czy login i hasło istnieją w żądaniu
+    if (!credentials.login || !credentials.password) {
+      ctx.response.status = Status.BadRequest
+      return;
+    }
+
+    const key = ["users", credentials.login]
+    const entry = await kv.get<{ password: string }>(key);
+
+    // później przejdziemy do haszowania haseł, omówienia mechanizmu korzystania
+    // z funkcji udostępnionych przez Deno w tym celu
+    if (entry.value?.password === credentials.password) {
+      // tymczasowo
+      ctx.response.status = Status.NoContent
+    } else {
+      ctx.response.status = Status.Unauthorized
+    }
+  } catch {
+    ctx.response.status = Status.Unauthorized
   }
 })
 
