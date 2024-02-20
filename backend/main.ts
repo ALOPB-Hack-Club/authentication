@@ -4,6 +4,8 @@ import { Status } from "https://deno.land/x/oak_commons@0.4.0/status.ts";
 const app = new Application();
 const router = new Router();
 
+const SESSION_DURATION = 1000 * 60 * 5;
+
 router.get("/", (ctx) => {
   ctx.response.body = "Hi mom!"
 })
@@ -72,7 +74,17 @@ router.post("/register", async (ctx) => {
     // później przejdziemy do haszowania haseł, omówienia mechanizmu korzystania
     // z funkcji udostępnionych przez Deno w tym celu
     if (entry.value?.password === credentials.password) {
-      // tymczasowo
+      // wygenerować nowe id sesji
+      const sessionId = crypto.randomUUID();
+
+      // zapisać to id sesji
+      const key = ["sessions", sessionId];
+      const value = credentials.login;
+      await kv.set(key, value, { expireIn: SESSION_DURATION });
+
+      // przydzielić użytkownikowi cookiesa z id sesji
+      ctx.cookies.set("session", sessionId, { maxAge: SESSION_DURATION });
+
       ctx.response.status = Status.NoContent
     } else {
       ctx.response.status = Status.Unauthorized
